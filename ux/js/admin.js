@@ -1,9 +1,12 @@
-// ===================================
 // 全域變數與配置
 // ===================================
 let mailboxData = [];
 let filteredData = [];
 let editingId = null;
+
+// 密碼快取
+let adminPassword = localStorage.getItem('admin_password') || 'admin123';
+let frontendPassword = localStorage.getItem('frontend_password') || '1234';
 
 // Firebase 初始化
 let db;
@@ -11,17 +14,36 @@ try {
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
     console.log('Firebase 初始化成功');
+    loadSettings(); // 初始化時載入設定
 } catch (error) {
     console.error('Firebase 初始化失敗:', error);
 }
 
-// 從 localStorage 載入密碼,如果沒有則使用預設值
-function getAdminPassword() {
-    return localStorage.getItem('admin_password') || 'admin123';
-}
-
-function getFrontendPassword() {
-    return localStorage.getItem('frontend_password') || '1234';
+// 從 Firebase 載入密碼設定
+async function loadSettings() {
+    try {
+        if (!db) return;
+        const doc = await db.collection('settings').doc('config').get();
+        if (doc.exists) {
+            const data = doc.data();
+            if (data.adminPassword) {
+                adminPassword = data.adminPassword;
+                localStorage.setItem('admin_password', adminPassword);
+            }
+            if (data.frontendPassword) {
+                frontendPassword = data.frontendPassword;
+                localStorage.setItem('frontend_password', frontendPassword);
+            }
+        } else {
+            // 如果不存在，使用預設值初始化
+            await db.collection('settings').doc('config').set({
+                frontendPassword: frontendPassword,
+                adminPassword: adminPassword
+            });
+        }
+    } catch (error) {
+        console.error('載入設定失敗:', error);
+    }
 }
 
 // ===================================
@@ -45,12 +67,15 @@ function initLogin() {
     const passwordInput = document.getElementById('passwordInput');
     const loginError = document.getElementById('loginError');
 
-    loginForm.addEventListener('submit', (e) => {
+    loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+
+        // 登入前確保密碼是最新的
+        await loadSettings();
 
         const password = passwordInput.value;
 
-        if (password === getAdminPassword()) {
+        if (password === adminPassword) {
             // 登入成功
             setLoggedIn();
             hideLoginOverlay();
@@ -349,8 +374,8 @@ function closeModal() {
 // ===================================
 function openSettingsModal() {
     // 載入當前密碼
-    document.getElementById('frontendPasswordInput').value = getFrontendPassword();
-    document.getElementById('backendPasswordInput').value = getAdminPassword();
+    document.getElementById('frontendPasswordInput').value = frontendPassword;
+    document.getElementById('backendPasswordInput').value = adminPassword;
 
     document.getElementById('settingsModal').classList.add('active');
     document.getElementById('frontendPasswordInput').focus();
@@ -360,23 +385,36 @@ function closeSettingsModal() {
     document.getElementById('settingsModal').classList.remove('active');
 }
 
-function handleSettingsSubmit(e) {
+async function handleSettingsSubmit(e) {
     e.preventDefault();
 
-    const frontendPassword = document.getElementById('frontendPasswordInput').value.trim();
-    const backendPassword = document.getElementById('backendPasswordInput').value.trim();
+    const newFrontendPassword = document.getElementById('frontendPasswordInput').value.trim();
+    const newBackendPassword = document.getElementById('backendPasswordInput').value.trim();
 
-    if (!frontendPassword || !backendPassword) {
+    if (!newFrontendPassword || !newBackendPassword) {
         showToast('請輸入完整的密碼', 'error');
         return;
     }
 
-    // 儲存密碼到 localStorage
-    localStorage.setItem('frontend_password', frontendPassword);
-    localStorage.setItem('admin_password', backendPassword);
+    try {
+        // 儲存密碼到 Firebase
+        await db.collection('settings').doc('config').set({
+            frontendPassword: newFrontendPassword,
+            adminPassword: newBackendPassword
+        }, { merge: true });
 
-    closeSettingsModal();
-    showToast('密碼設定已儲存!');
+        // 更新本地快取
+        frontendPassword = newFrontendPassword;
+        adminPassword = newBackendPassword;
+        localStorage.setItem('frontend_password', frontendPassword);
+        localStorage.setItem('admin_password', adminPassword);
+
+        closeSettingsModal();
+        showToast('密碼設定已儲存 (同步至雲端)!');
+    } catch (error) {
+        console.error('儲存密碼失敗:', error);
+        showToast('儲存密碼失敗: ' + error.message, 'error');
+    }
 }
 
 // ===================================

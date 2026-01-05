@@ -1,10 +1,11 @@
-// ===================================
 // 全域變數與配置
 // ===================================
 let mailboxData = [];
 let filteredData = [];
 let currentView = 'grid';
 let currentTheme = localStorage.getItem('theme') || 'light';
+// 密碼快取 (預設值)
+let frontendPassword = localStorage.getItem('frontend_password') || '1234';
 
 // Firebase 初始化
 let db;
@@ -12,13 +13,34 @@ try {
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
     console.log('Firebase 初始化成功');
+    // 初始化時立即載入設定
+    loadSettings();
 } catch (error) {
     console.error('Firebase 初始化失敗:', error);
 }
 
-// 從 localStorage 載入密碼,如果沒有則使用預設值
-function getCorrectPassword() {
-    return localStorage.getItem('frontend_password') || '1234';
+// 從 Firebase 載入密碼設定
+async function loadSettings() {
+    try {
+        if (!db) return;
+        const doc = await db.collection('settings').doc('config').get();
+        if (doc.exists) {
+            const data = doc.data();
+            if (data.frontendPassword) {
+                frontendPassword = data.frontendPassword;
+                // 更新本地快取
+                localStorage.setItem('frontend_password', frontendPassword);
+            }
+        } else {
+            // 如果設定不存在，建立預設設定
+            await db.collection('settings').doc('config').set({
+                frontendPassword: '1234',
+                adminPassword: 'admin123'
+            });
+        }
+    } catch (error) {
+        console.error('載入設定失敗:', error);
+    }
 }
 
 // ===================================
@@ -44,12 +66,15 @@ function initLogin() {
     const passwordInput = document.getElementById('passwordInput');
     const loginError = document.getElementById('loginError');
 
-    loginForm.addEventListener('submit', (e) => {
+    loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+
+        // 登入前再次嘗試更新最新密碼
+        await loadSettings();
 
         const password = passwordInput.value;
 
-        if (password === getCorrectPassword()) {
+        if (password === frontendPassword) {
             // 登入成功
             setLoggedIn();
             hideLoginOverlay();
