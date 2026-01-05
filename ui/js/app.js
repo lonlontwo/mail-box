@@ -5,7 +5,7 @@ let filteredData = [];
 let currentView = 'grid';
 let currentTheme = localStorage.getItem('theme') || 'light';
 // 密碼快取 (預設值)
-let frontendPassword = localStorage.getItem('frontend_password') || '1234';
+let frontendPassword = localStorage.getItem('frontend_password') || 'csmcsm46';
 
 // Firebase 初始化
 let db;
@@ -34,8 +34,8 @@ async function loadSettings() {
         } else {
             // 如果設定不存在，建立預設設定
             await db.collection('settings').doc('config').set({
-                frontendPassword: '1234',
-                adminPassword: 'admin123'
+                frontendPassword: 'csmcsm46',
+                adminPassword: 'csmcsm46'
             });
         }
     } catch (error) {

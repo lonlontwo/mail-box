@@ -5,8 +5,8 @@ let filteredData = [];
 let editingId = null;
 
 // 密碼快取
-let adminPassword = localStorage.getItem('admin_password') || 'admin123';
-let frontendPassword = localStorage.getItem('frontend_password') || '1234';
+let adminPassword = localStorage.getItem('admin_password') || 'csmcsm46';
+let frontendPassword = localStorage.getItem('frontend_password') || 'csmcsm46';
 
 // Firebase 初始化
 let db;
