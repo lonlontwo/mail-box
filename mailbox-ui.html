@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>信箱記錄本</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body,
+        html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        /* 載入動畫 */
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+
+        .loading.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loading-icon {
+            font-size: 4rem;
+            animation: bounce 1s infinite;
+        }
+
+        .loading-text {
+            color: white;
+            font-size: 1.2rem;
+            margin-top: 1rem;
+            font-weight: 500;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-20px);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 載入動畫 -->
+    <div class="loading" id="loading">
+        <div class="loading-icon">📬</div>
+        <div class="loading-text">載入信箱記錄本...</div>
+    </div>
+
+    <!-- 嵌入前台 -->
+    <iframe src="https://11d7f49c.mail-box-6xa.pages.dev/ui/" id="mailboxFrame" allow="clipboard-write" loading="eager">
+    </iframe>
+
+    <script>
+        // iframe 載入完成後隱藏載入動畫
+        const iframe = document.getElementById('mailboxFrame');
+        const loading = document.getElementById('loading');
+
+        iframe.addEventListener('load', () => {
+            setTimeout(() => {
+                loading.classList.add('hidden');
+            }, 500);
+        });
+
+        // 如果 5 秒後還沒載入完成,也隱藏載入動畫
+        setTimeout(() => {
+            loading.classList.add('hidden');
+        }, 5000);
+    </script>
+</body>
+
+</html>
