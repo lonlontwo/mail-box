@@ -2,3 +2,12 @@ node_modules/
 .DS_Store
 *.log
 .env
+package.json
+package-lock.json
+firebase.json
+.firebaserc
+firestore.rules
+firestore.indexes.json
+update-password.js
+emergency-reset.html
+update-firebase-password.html
