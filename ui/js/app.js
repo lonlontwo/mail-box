@@ -6,6 +6,16 @@ let filteredData = [];
 let currentView = 'grid';
 let currentTheme = localStorage.getItem('theme') || 'light';
 
+// Firebase 初始化
+let db;
+try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    console.log('Firebase 初始化成功');
+} catch (error) {
+    console.error('Firebase 初始化失敗:', error);
+}
+
 // 從 localStorage 載入密碼,如果沒有則使用預設值
 function getCorrectPassword() {
     return localStorage.getItem('frontend_password') || '1234';
@@ -131,20 +141,26 @@ function initEventListeners() {
 }
 
 // ===================================
-// 載入信箱資料
+// 載入信箱資料 - 從 Firebase Firestore
 // ===================================
 async function loadMailboxData() {
     try {
-        // 從 localStorage 載入資料,如果沒有則使用示範資料
-        const savedData = localStorage.getItem('mailbox_data');
-
-        if (savedData) {
-            mailboxData = JSON.parse(savedData);
-        } else {
-            mailboxData = getDemoData();
-            // 儲存示範資料到 localStorage
-            localStorage.setItem('mailbox_data', JSON.stringify(mailboxData));
+        if (!db) {
+            throw new Error('Firebase 未初始化');
         }
+
+        // 從 Firestore 載入資料
+        const snapshot = await db.collection('mailboxes').orderBy('createdDate', 'desc').get();
+
+        mailboxData = [];
+        snapshot.forEach(doc => {
+            mailboxData.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+
+        console.log(`從 Firebase 載入了 ${mailboxData.length} 筆信箱資料`);
 
         filteredData = [...mailboxData];
 
@@ -152,62 +168,14 @@ async function loadMailboxData() {
         updateStats();
     } catch (error) {
         console.error('載入資料失敗:', error);
-        showToast('載入資料失敗', 'error');
-    }
-}
+        showToast('載入資料失敗: ' + error.message, 'error');
 
-// 示範資料 - 包含 id, email, createdDate, note (備註只在後台顯示)
-function getDemoData() {
-    return [
-        {
-            id: '1',
-            email: 'work.account@gmail.com',
-            createdDate: '2024-01-15T09:30:25',
-            note: '公司主要信箱'
-        },
-        {
-            id: '2',
-            email: 'personal.life@outlook.com',
-            createdDate: '2024-03-20T14:15:42',
-            note: '個人生活使用'
-        },
-        {
-            id: '3',
-            email: 'shopping.deals@yahoo.com',
-            createdDate: '2024-05-10T18:22:10',
-            note: '專門用於網購'
-        },
-        {
-            id: '4',
-            email: 'social.connect@protonmail.com',
-            createdDate: '2024-07-01T11:45:33',
-            note: '社交媒體註冊'
-        },
-        {
-            id: '5',
-            email: 'temp.register@tempmail.com',
-            createdDate: '2024-08-15T16:08:55',
-            note: ''
-        },
-        {
-            id: '6',
-            email: 'newsletter@subscription.com',
-            createdDate: '2024-09-22T10:12:18',
-            note: '訂閱電子報專用'
-        },
-        {
-            id: '7',
-            email: 'backup.email@icloud.com',
-            createdDate: '2024-11-05T13:27:44',
-            note: '備用信箱'
-        },
-        {
-            id: '8',
-            email: 'test.account@test.com',
-            createdDate: '2025-01-01T00:00:01',
-            note: '測試用'
-        }
-    ];
+        // 如果 Firebase 失敗,顯示空狀態
+        mailboxData = [];
+        filteredData = [];
+        renderMailboxList();
+        updateStats();
+    }
 }
 
 // ===================================

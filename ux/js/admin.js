@@ -5,6 +5,16 @@ let mailboxData = [];
 let filteredData = [];
 let editingId = null;
 
+// Firebase 初始化
+let db;
+try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    console.log('Firebase 初始化成功');
+} catch (error) {
+    console.error('Firebase 初始化失敗:', error);
+}
+
 // 從 localStorage 載入密碼,如果沒有則使用預設值
 function getAdminPassword() {
     return localStorage.getItem('admin_password') || 'admin123';
@@ -112,54 +122,40 @@ function initEventListeners() {
 }
 
 // ===================================
-// 載入信箱資料
+// 載入信箱資料 - 從 Firebase Firestore
 // ===================================
-function loadMailboxData() {
-    // 從 localStorage 載入資料,如果沒有則使用示範資料
-    const savedData = localStorage.getItem('mailbox_data');
-
-    if (savedData) {
-        mailboxData = JSON.parse(savedData);
-    } else {
-        mailboxData = getDemoData();
-        saveData();
-    }
-
-    filteredData = [...mailboxData];
-    renderTable();
-    updateStats();
-}
-
-// 示範資料
-function getDemoData() {
-    return [
-        {
-            id: generateId(),
-            email: 'work.account@gmail.com',
-            createdDate: '2024-01-15T09:30:25',
-            note: '公司主要信箱'
-        },
-        {
-            id: generateId(),
-            email: 'personal.life@outlook.com',
-            createdDate: '2024-03-20T14:15:42',
-            note: '個人生活使用'
-        },
-        {
-            id: generateId(),
-            email: 'shopping.deals@yahoo.com',
-            createdDate: '2024-05-10T18:22:10',
-            note: '專門用於網購'
+async function loadMailboxData() {
+    try {
+        if (!db) {
+            throw new Error('Firebase 未初始化');
         }
-    ];
-}
 
-// 儲存資料到 localStorage
-function saveData() {
-    localStorage.setItem('mailbox_data', JSON.stringify(mailboxData));
+        // 從 Firestore 載入資料
+        const snapshot = await db.collection('mailboxes').orderBy('createdDate', 'desc').get();
 
-    // 同步更新前端資料 (如果需要的話)
-    // 這裡可以添加與前端的資料同步邏輯
+        mailboxData = [];
+        snapshot.forEach(doc => {
+            mailboxData.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+
+        console.log(`從 Firebase 載入了 ${mailboxData.length} 筆信箱資料`);
+
+        filteredData = [...mailboxData];
+        renderTable();
+        updateStats();
+    } catch (error) {
+        console.error('載入資料失敗:', error);
+        showToast('載入資料失敗: ' + error.message, 'error');
+
+        // 如果 Firebase 失敗,顯示空狀態
+        mailboxData = [];
+        filteredData = [];
+        renderTable();
+        updateStats();
+    }
 }
 
 // ===================================
@@ -254,26 +250,34 @@ function editMailbox(id) {
 }
 
 // ===================================
-// 刪除信箱
+// 刪除信箱 - 從 Firebase
 // ===================================
-function deleteMailbox(id) {
+async function deleteMailbox(id) {
     const item = mailboxData.find(m => m.id === id);
     if (!item) return;
 
     if (confirm(`確定要刪除信箱「${item.email}」嗎?`)) {
-        mailboxData = mailboxData.filter(m => m.id !== id);
-        saveData();
-        filteredData = [...mailboxData];
-        renderTable();
-        updateStats();
-        showToast('信箱已刪除');
+        try {
+            // 從 Firestore 刪除
+            await db.collection('mailboxes').doc(id).delete();
+
+            // 更新本地資料
+            mailboxData = mailboxData.filter(m => m.id !== id);
+            filteredData = [...mailboxData];
+            renderTable();
+            updateStats();
+            showToast('信箱已刪除');
+        } catch (error) {
+            console.error('刪除失敗:', error);
+            showToast('刪除失敗: ' + error.message, 'error');
+        }
     }
 }
 
 // ===================================
-// 表單提交
+// 表單提交 - 儲存到 Firebase
 // ===================================
-function handleFormSubmit(e) {
+async function handleFormSubmit(e) {
     e.preventDefault();
 
     const email = document.getElementById('emailInput').value.trim();
@@ -284,31 +288,47 @@ function handleFormSubmit(e) {
         return;
     }
 
-    if (editingId) {
-        // 更新現有記錄
-        const item = mailboxData.find(m => m.id === editingId);
-        if (item) {
-            item.email = email;
-            item.note = note;
-            showToast('信箱已更新');
-        }
-    } else {
-        // 新增記錄
-        const newItem = {
-            id: generateId(),
-            email: email,
-            createdDate: getCurrentDateTime(),
-            note: note
-        };
-        mailboxData.unshift(newItem); // 新增到最前面
-        showToast('信箱已新增');
-    }
+    try {
+        if (editingId) {
+            // 更新現有記錄到 Firestore
+            await db.collection('mailboxes').doc(editingId).update({
+                email: email,
+                note: note
+            });
 
-    saveData();
-    filteredData = [...mailboxData];
-    renderTable();
-    updateStats();
-    closeModal();
+            // 更新本地資料
+            const item = mailboxData.find(m => m.id === editingId);
+            if (item) {
+                item.email = email;
+                item.note = note;
+            }
+            showToast('信箱已更新');
+        } else {
+            // 新增記錄到 Firestore
+            const newItem = {
+                email: email,
+                createdDate: getCurrentDateTime(),
+                note: note
+            };
+
+            const docRef = await db.collection('mailboxes').add(newItem);
+
+            // 更新本地資料
+            mailboxData.unshift({
+                id: docRef.id,
+                ...newItem
+            });
+            showToast('信箱已新增');
+        }
+
+        filteredData = [...mailboxData];
+        renderTable();
+        updateStats();
+        closeModal();
+    } catch (error) {
+        console.error('儲存失敗:', error);
+        showToast('儲存失敗: ' + error.message, 'error');
+    }
 }
 
 // ===================================
@@ -382,11 +402,6 @@ function showToast(message, type = 'success') {
 // ===================================
 // 工具函數
 // ===================================
-
-// 生成唯一 ID
-function generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
-}
 
 // 獲取當前時間 (ISO 格式)
 function getCurrentDateTime() {
