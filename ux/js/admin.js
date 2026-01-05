@@ -13,7 +13,7 @@ let db;
 try {
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
-    console.log('Firebase 初始化成功');
+    console.log('Firebase 初始化成功 - v20260105_ForceUpdate');
     loadSettings(); // 初始化時載入設定
 } catch (error) {
     console.error('Firebase 初始化失敗:', error);
